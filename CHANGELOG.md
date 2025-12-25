@@ -1,3 +1,9 @@
+## [1.0.3](https://github.com/abk1969/fraud_agentic/compare/v1.0.2...v1.0.3) (2025-12-25)
+
+### Bug Fixes
+
+* Add missing frontend/src/lib files to git ([08d7a7b](https://github.com/abk1969/fraud_agentic/commit/08d7a7b6993934ffb4333092d8595e7d47310233))
+
 ## [1.0.2](https://github.com/abk1969/fraud_agentic/compare/v1.0.1...v1.0.2) (2025-12-25)
 
 ### Bug Fixes
