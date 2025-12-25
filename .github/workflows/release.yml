@@ -1,0 +1,381 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no publish)'
+        type: boolean
+        default: false
+
+# Prevent concurrent releases, but don't cancel in-progress ones
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ============================================
+  # Semantic Versioning
+  # ============================================
+  semantic-release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_major_version: ${{ steps.semantic.outputs.new_release_major_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release \
+            @semantic-release/changelog \
+            @semantic-release/git \
+            @semantic-release/exec \
+            conventional-changelog-conventionalcommits
+
+      - name: Run semantic-release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npx semantic-release --dry-run 2>&1 | tee semantic-output.txt || true
+          else
+            npx semantic-release 2>&1 | tee semantic-output.txt || true
+          fi
+
+          # Extract version from output
+          VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+' semantic-output.txt || \
+                    grep -oP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' semantic-output.txt || \
+                    echo "")
+
+          if [ -n "$VERSION" ]; then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            echo "new_release_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "new_release_major_version=${VERSION%%.*}" >> $GITHUB_OUTPUT
+            echo "::notice::New version: $VERSION"
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "::notice::No new release"
+          fi
+
+  # ============================================
+  # Backend Multi-Arch Build (PARALLEL MATRIX)
+  # ============================================
+  build-backend:
+    name: Build Backend (${{ matrix.platform }})
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            suffix: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/backend
+          tags: |
+            type=raw,value=${{ needs.semantic-release.outputs.new_release_version }}-${{ matrix.suffix }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.backend
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=backend-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=backend-${{ matrix.suffix }}
+          build-args: |
+            VERSION=${{ needs.semantic-release.outputs.new_release_version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+          provenance: true
+          sbom: true
+
+  # ============================================
+  # Frontend Multi-Arch Build (PARALLEL MATRIX)
+  # ============================================
+  build-frontend:
+    name: Build Frontend (${{ matrix.platform }})
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            suffix: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/frontend
+          tags: |
+            type=raw,value=${{ needs.semantic-release.outputs.new_release_version }}-${{ matrix.suffix }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.frontend
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=frontend-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ matrix.suffix }}
+          build-args: |
+            VERSION=${{ needs.semantic-release.outputs.new_release_version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+          provenance: true
+          sbom: true
+
+  # ============================================
+  # Merge Backend Multi-Arch Manifest
+  # ============================================
+  merge-backend-manifest:
+    name: Merge Backend Manifest
+    needs: [semantic-release, build-backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create and push multi-arch manifest
+        run: |
+          VERSION=${{ needs.semantic-release.outputs.new_release_version }}
+          MAJOR=${{ needs.semantic-release.outputs.new_release_major_version }}
+          IMAGE=${{ env.IMAGE_PREFIX }}/backend
+
+          docker buildx imagetools create \
+            --tag ${IMAGE}:${VERSION} \
+            --tag ${IMAGE}:latest \
+            --tag ${IMAGE}:v${MAJOR} \
+            --tag ${IMAGE}:${{ github.sha }} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
+
+  # ============================================
+  # Merge Frontend Multi-Arch Manifest
+  # ============================================
+  merge-frontend-manifest:
+    name: Merge Frontend Manifest
+    needs: [semantic-release, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create and push multi-arch manifest
+        run: |
+          VERSION=${{ needs.semantic-release.outputs.new_release_version }}
+          MAJOR=${{ needs.semantic-release.outputs.new_release_major_version }}
+          IMAGE=${{ env.IMAGE_PREFIX }}/frontend
+
+          docker buildx imagetools create \
+            --tag ${IMAGE}:${VERSION} \
+            --tag ${IMAGE}:latest \
+            --tag ${IMAGE}:v${MAJOR} \
+            --tag ${IMAGE}:${{ github.sha }} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
+
+  # ============================================
+  # Security Scanning
+  # ============================================
+  security-scan:
+    name: Security Scan (${{ matrix.image }})
+    needs: [merge-backend-manifest, merge-frontend-manifest, semantic-release]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ needs.semantic-release.outputs.new_release_version }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.image }}-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.image }}-results.sarif'
+          category: '${{ matrix.image }}-security'
+        continue-on-error: true
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: '${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ needs.semantic-release.outputs.new_release_version }}'
+          format: spdx-json
+          output-file: 'sbom-${{ matrix.image }}.spdx.json'
+        continue-on-error: true
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.image }}
+          path: 'sbom-${{ matrix.image }}.spdx.json'
+          if-no-files-found: ignore
+
+  # ============================================
+  # Create GitHub Release
+  # ============================================
+  github-release:
+    name: Create GitHub Release
+    needs: [semantic-release, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sbom-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.semantic-release.outputs.new_release_version }}
+          name: Release v${{ needs.semantic-release.outputs.new_release_version }}
+          generate_release_notes: true
+          files: |
+            sbom-*.spdx.json
+          body: |
+            ## Docker Images
+
+            ```bash
+            # Backend
+            docker pull ${{ env.IMAGE_PREFIX }}/backend:${{ needs.semantic-release.outputs.new_release_version }}
+
+            # Frontend
+            docker pull ${{ env.IMAGE_PREFIX }}/frontend:${{ needs.semantic-release.outputs.new_release_version }}
+            ```
+
+            **Supported Architectures:** `linux/amd64`, `linux/arm64`
+
+            ## Quick Start
+
+            ```bash
+            # Clone and run with Docker Compose
+            git clone https://github.com/${{ github.repository }}.git
+            cd fraud_agentic
+            docker-compose up -d
+            ```
+        continue-on-error: true
+
+  # ============================================
+  # Summary
+  # ============================================
+  release-summary:
+    name: Release Summary
+    needs: [semantic-release, github-release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.semantic-release.outputs.new_release_published }}" = "true" ]; then
+            echo "### New Release Published" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** v${{ needs.semantic-release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Backend Image:** \`${{ env.IMAGE_PREFIX }}/backend:${{ needs.semantic-release.outputs.new_release_version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Frontend Image:** \`${{ env.IMAGE_PREFIX }}/frontend:${{ needs.semantic-release.outputs.new_release_version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Architectures:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### No New Release" >> $GITHUB_STEP_SUMMARY
+            echo "No new commits triggering a release." >> $GITHUB_STEP_SUMMARY
+          fi
