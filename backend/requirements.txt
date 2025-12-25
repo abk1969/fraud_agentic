@@ -42,4 +42,4 @@ httpx==0.26.0
 # Development
 black==23.12.1
 ruff==0.1.11
-mypy==1.8.0
+mypy==1.19.1
