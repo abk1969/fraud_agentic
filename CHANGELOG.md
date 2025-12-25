@@ -1,3 +1,16 @@
+## 1.0.0 (2025-12-25)
+
+### Features
+
+* Add Docker optimization and fix Next.js config ([d02f7a8](https://github.com/abk1969/fraud_agentic/commit/d02f7a8b429ffcc50ae838276314996f8a1537b6))
+* **ci:** Add complete CI/CD pipeline with multi-arch Docker builds ([b11dde9](https://github.com/abk1969/fraud_agentic/commit/b11dde9b7886dd199e6585ff927a06d36c97c15b))
+* FraudShield AI - Complete fraud detection platform ([6208c65](https://github.com/abk1969/fraud_agentic/commit/6208c650b4ff7918b96a47d0e89ef6a9ddf5a355))
+
+### Bug Fixes
+
+* Move vercel.json to frontend directory ([33c54a4](https://github.com/abk1969/fraud_agentic/commit/33c54a446335dffd3541e744847d1ff7aa8ebba6))
+* Vercel deployment configuration ([d402863](https://github.com/abk1969/fraud_agentic/commit/d40286393ff9ca3c3dcf73c1d31d2ae639800218))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
