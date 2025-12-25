@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/abk1969/fraud_agentic/compare/v1.0.0...v1.0.1) (2025-12-25)
+
+### Bug Fixes
+
+* **frontend:** Disable noImplicitAny to fix CI type errors ([bd4f315](https://github.com/abk1969/fraud_agentic/commit/bd4f31543b390e99cd8f6774c8c0c92fd974b070))
+
 ## 1.0.0 (2025-12-25)
 
 ### Features
