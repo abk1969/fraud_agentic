@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/abk1969/fraud_agentic/compare/v1.0.1...v1.0.2) (2025-12-25)
+
+### Bug Fixes
+
+* **frontend:** Ignore TypeScript/ESLint errors in Next.js build ([7fd7e65](https://github.com/abk1969/fraud_agentic/commit/7fd7e658bc485ed23db49a58d5866bbaed61fe57))
+
 ## [1.0.1](https://github.com/abk1969/fraud_agentic/compare/v1.0.0...v1.0.1) (2025-12-25)
 
 ### Bug Fixes
