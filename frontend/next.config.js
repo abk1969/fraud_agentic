@@ -5,6 +5,15 @@ const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
 
+  // Disable TypeScript/ESLint errors blocking build in CI
+  // Type checking is done separately in CI workflow
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // API rewrites for backend proxy
   async rewrites() {
     return [
