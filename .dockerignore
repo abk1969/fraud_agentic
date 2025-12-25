@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+frontend/node_modules
+.pnpm-store
+
+# Build outputs
+frontend/.next
+frontend/out
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+dist
+build
+*.egg-info
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs
+
+# Documentation
+docs
+*.md
+!README.md
+
+# Tests
+tests
+**/test_*
+**/*_test.py
+
+# Misc
+.DS_Store
+Thumbs.db
+*.pdf
+nul

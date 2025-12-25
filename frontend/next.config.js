@@ -2,8 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // Use standalone output only for Docker (not Vercel)
-  // output: 'standalone',
+  // Enable standalone output for Docker
+  output: 'standalone',
 
   // API rewrites for backend proxy
   async rewrites() {
