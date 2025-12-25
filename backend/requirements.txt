@@ -11,7 +11,7 @@ pydantic-settings==2.1.0
 
 # Async Support
 httpx==0.26.0
-aiofiles==23.2.1
+aiofiles==25.1.0
 
 # Google Cloud
 google-cloud-aiplatform==1.38.0
