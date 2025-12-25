@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/abk1969/fraud_agentic/compare/v1.0.3...v1.1.0) (2025-12-25)
+
+### Features
+
+* **deploy:** Add Dokploy deployment configuration ([d625795](https://github.com/abk1969/fraud_agentic/commit/d6257951d789373ff195134567b1506b1c52eff6))
+
 ## [1.0.3](https://github.com/abk1969/fraud_agentic/compare/v1.0.2...v1.0.3) (2025-12-25)
 
 ### Bug Fixes
